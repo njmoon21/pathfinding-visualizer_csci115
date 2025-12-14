@@ -1,0 +1,7 @@
+WIDTH 3
+HEIGHT 3
+START 0 0
+GOAL 2 2
+...
+.#.
+...
