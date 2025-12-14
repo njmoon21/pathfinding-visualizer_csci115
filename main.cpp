@@ -5,6 +5,7 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <climits>
 
 
 struct Pair {
@@ -114,7 +115,7 @@ void mapLoading(std::string& path, Grid& grid) {
 }
 
 
-struct argumentConfigs {
+struct ArgumentConfigs {
     bool map_mode_ = false, generation_mode_ = false;
     std::string map_path_;
     int width_ = 0, height_ = 0;
@@ -123,7 +124,7 @@ struct argumentConfigs {
 };
 
 
-bool argumentParser(int argc, char* argv[], argumentConfigs& configuration) {
+bool argumentParser(int argc, char* argv[], ArgumentConfigs& configuration) {
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
 
@@ -140,6 +141,8 @@ bool argumentParser(int argc, char* argv[], argumentConfigs& configuration) {
 
             configuration.map_mode_ = true;
             configuration.map_path_ = argv[i + 1];
+
+            i++;
         }
 
 
@@ -179,9 +182,11 @@ bool argumentParser(int argc, char* argv[], argumentConfigs& configuration) {
                 std::cout << "Invalid input, must explicitly choose the following: {bfs|dijkstra|astar|all}\n";
                 return false;
             }
+
+            i++;
         }
 
-
+/*
         // If argv[i] == "width"
         else if (arg == "--width") {
             if (i + 1 >= argc) {
@@ -189,6 +194,8 @@ bool argumentParser(int argc, char* argv[], argumentConfigs& configuration) {
                 return false;
             }
             configuration.width_ = std::stoi(argv[i + 1]);
+
+            i++;
         }
 
 
@@ -199,6 +206,8 @@ bool argumentParser(int argc, char* argv[], argumentConfigs& configuration) {
                 return false;
             }
             configuration.height_ = std::stoi(argv[i + 1]);
+
+            i++;
         }
 
 
@@ -209,7 +218,11 @@ bool argumentParser(int argc, char* argv[], argumentConfigs& configuration) {
                 return false;
             }
             configuration.density_ = std::stof(argv[i + 1]);
+
+            i++;
         }
+*/
+
 
         // Invalid argument
         else {
@@ -245,8 +258,9 @@ bool argumentParser(int argc, char* argv[], argumentConfigs& configuration) {
     return true;
 }
 
+
 // Algorithm implementations
-struct algorithmSearch {
+struct AlgorithmSearch {
     bool found = false;
     std::vector<bool> visited;
     std::vector<int> path; // Each int is an ID that a cell represents
@@ -256,8 +270,8 @@ struct algorithmSearch {
 };
 
 
-algorithmSearch BFS(Grid& grid) {
-    algorithmSearch result;
+AlgorithmSearch BFS(Grid& grid) {
+    AlgorithmSearch result;
 
     int n = grid.width * grid.height; // represents the amount of cells in the grid
     result.visited.assign(n, false); // fill every cell with false, since at the start we haven't visited anything
@@ -299,7 +313,6 @@ algorithmSearch BFS(Grid& grid) {
             result.path.push_back(curr);
             curr = parents[curr];
         }
-        std::reverse(result.path.begin(), result.path.end());
     }
 
 
@@ -307,16 +320,155 @@ algorithmSearch BFS(Grid& grid) {
 }
 
 
-algorithmSearch Dijkstras(Grid& grid) {
+AlgorithmSearch Dijkstras(Grid& grid) {
+    AlgorithmSearch result;
 
+    int n = grid.width * grid.height; // represents the amount of cells in the grid
+    result.visited.assign(n, false); // fill every cell with false, since at the start we haven't visited anything
+
+    std::vector<int> parents(n, -1); // Each cell containing a parentID, -1 is a sentinel value
+    std::vector<int> cost(n, INT_MAX);
+
+    int startId = grid.toID(grid.start_row, grid.start_col);
+    int goalId = grid.toID(grid.goal_row, grid.goal_col);
+
+    // std::greater makes it so that the lowest costs are first, which I need for a min-heap
+    // pair<cost, ID #>
+    std::priority_queue<std::pair<int, int>,
+                        std::vector<std::pair<int, int>>,
+                        std::greater<std::pair<int, int>>> priorityQueue;
+
+    // "Use a min-heap (priority queue)"
+    // Start
+    cost[startId] = 0;
+    priorityQueue.push({0, startId});
+
+
+    while (!priorityQueue.empty()) {
+        std::pair<int, int> top = priorityQueue.top();
+        int pairCost = top.first;
+        int curr = top.second;
+        priorityQueue.pop();
+
+        if (result.visited[curr] == true)
+            continue;
+
+        result.visited[curr] = true;
+
+        if (curr == goalId) {
+            result.found = true;
+            break;
+        }
+
+
+        for (int neighbor : grid.getNeighbors(curr)) {
+            if (result.visited[neighbor] == true)
+                continue;
+
+            int newCost = pairCost + 1;
+
+            if (newCost < cost[neighbor]) {
+                cost[neighbor] = newCost;
+                parents[neighbor] = curr;
+                priorityQueue.push({newCost, neighbor});
+            }
+        }
+    }
+
+
+    if (result.found == true){
+        int curr = goalId;
+        while (curr != -1) {
+            result.path.push_back(curr);
+            curr = parents[curr];
+        }
+    }
+
+
+    return result;
 }
 
-algorithmSearch Astar(Grid& grid) {
 
+int manhattanDistance(Grid& grid, int fromId, int toId) {
+    // h(n) = |r_n - r_G| + |c_n - c_G|
+    Pair n = grid.fromID(fromId);
+    Pair G = grid.fromID(toId);
+
+    return abs(n.row - G.row) + abs(n.col - G.col);
+}
+AlgorithmSearch Astar(Grid& grid) {
+    AlgorithmSearch result;
+
+    int n = grid.width * grid.height; // represents the amount of cells in the grid
+    result.visited.assign(n, false); // fill every cell with false, since at the start we haven't visited anything
+
+    std::vector<int> parents(n, -1); // Each cell containing a parentID, -1 is a sentinel value
+    std::vector<int> cost(n, INT_MAX);
+
+    int startId = grid.toID(grid.start_row, grid.start_col);
+    int goalId = grid.toID(grid.goal_row, grid.goal_col);
+
+    // pair<f, id>
+    std::priority_queue<std::pair<int, int>,
+                        std::vector<std::pair<int, int>>,
+                        std::greater<std::pair<int, int>>> priorityQueue;
+
+    cost[startId] = 0;
+    int hStart = manhattanDistance(grid, startId, goalId);
+    priorityQueue.push({hStart, startId});
+
+
+    while (!priorityQueue.empty()) {
+        std::pair<int, int> top = priorityQueue.top();
+        priorityQueue.pop();
+
+        int curr = top.second;
+
+        if (result.visited[curr])
+            continue;
+
+        result.visited[curr] = true;
+
+        if (curr == goalId) {
+            result.found = true;
+            break;
+        }
+
+
+        for (int neighbor : grid.getNeighbors(curr)) {
+            if (result.visited[neighbor] == true)
+                continue;
+
+            int newG = cost[curr] + 1;
+
+            if (newG < cost[neighbor]) {
+                cost[neighbor] = newG;
+                parents[neighbor] = curr;
+
+                int h = manhattanDistance(grid, neighbor, goalId);
+                int f = newG + h;
+
+                priorityQueue.push({f, neighbor});
+            }
+        }
+    }
+
+
+    if (result.found == true) {
+        int curr = goalId;
+        while (curr != -1) {
+            result.path.push_back(curr);
+            curr = parents[curr];
+        }
+
+    }
+
+
+    return result;
 }
 
 
-void print(Grid& grid, algorithmSearch& result, std::string& algorithm) {
+void print(Grid& grid, AlgorithmSearch& result, const std::string& algorithm) {
     std::vector<char> visualGrid = grid.cells;
 
 
@@ -349,7 +501,7 @@ void print(Grid& grid, algorithmSearch& result, std::string& algorithm) {
         std::cout << "\n";
     }
     bool pathFound = result.found;
-    std::cout << "Found: " << pathFound << "\n";
+    std::cout << "Found: " << pathFound << "\n\n";
 }
 
 
@@ -359,12 +511,44 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    argumentConfigs configuration;
+    ArgumentConfigs configuration;
     bool parsingSuccessful = argumentParser(argc, argv, configuration);
     if (parsingSuccessful == false)
         return 1;
 
-    // TODO
 
+    Grid grid;
+    mapLoading(configuration.map_path_, grid);
+    AlgorithmSearch result;
+
+    if (configuration.algorithm_ == Algorithm::ALL) {
+        Grid grid1, grid2, grid3;
+
+        mapLoading(configuration.map_path_, grid1);
+        mapLoading(configuration.map_path_, grid2);
+        mapLoading(configuration.map_path_, grid3);
+
+        AlgorithmSearch result1 = BFS(grid1);
+        AlgorithmSearch result2 = Dijkstras(grid2);
+        AlgorithmSearch result3 = Astar(grid3);
+
+        print(grid1, result1, "BFS");
+        print(grid2, result2, "Dijkstra's");
+        print(grid3, result3, "A*");
+    }
+    if (configuration.algorithm_ == Algorithm::BFS) {
+        result = BFS(grid);
+        print(grid, result, "BFS");
+    }
+    if (configuration.algorithm_ == Algorithm::DIJKSTRA) {
+        result = Dijkstras(grid);
+        print(grid, result, "Dijkstra's");
+    }
+    if (configuration.algorithm_ == Algorithm::A_STAR) {
+        result = Astar(grid);
+        print(grid, result, "A*");
+    }
+
+    
     return 0;
 }
