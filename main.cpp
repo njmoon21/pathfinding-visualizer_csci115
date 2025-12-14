@@ -4,7 +4,6 @@
 #include <string>
 #include <fstream>
 #include <sstream>
-#include <algorithm>
 #include <climits>
 
 
@@ -118,8 +117,6 @@ void mapLoading(std::string& path, Grid& grid) {
 struct ArgumentConfigs {
     bool map_mode_ = false, generation_mode_ = false;
     std::string map_path_;
-    int width_ = 0, height_ = 0;
-    float density_ = 0;
     Algorithm algorithm_;
 };
 
@@ -144,21 +141,6 @@ bool argumentParser(int argc, char* argv[], ArgumentConfigs& configuration) {
 
             i++;
         }
-
-
-        /*
-
-    // If argv[i] == "--generate"
-        else if (arg == "--generate") {
-            if (configuration.map_mode_ == true) {
-                std::cout << "Error: Map mode is already on.\n";
-                return false;
-            }
-            configuration.generation_mode_ = true;
-        }
-
-         */
-
 
 
         // If argv[i] == "--algo"
@@ -186,44 +168,6 @@ bool argumentParser(int argc, char* argv[], ArgumentConfigs& configuration) {
             i++;
         }
 
-/*
-        // If argv[i] == "width"
-        else if (arg == "--width") {
-            if (i + 1 >= argc) {
-                std::cout << "--width requires a value <int>\n";
-                return false;
-            }
-            configuration.width_ = std::stoi(argv[i + 1]);
-
-            i++;
-        }
-
-
-        // If argv[i] == "height"
-        else if (arg == "--height") {
-            if (i + 1 >= argc) {
-                std::cout << "--height requires a value <int>\n";
-                return false;
-            }
-            configuration.height_ = std::stoi(argv[i + 1]);
-
-            i++;
-        }
-
-
-        // If argv[i] == "density"
-        else if (arg == "--density") {
-            if (i + 1 >= argc) {
-                std::cout << "--density requires a value <float>\n";
-                return false;
-            }
-            configuration.density_ = std::stof(argv[i + 1]);
-
-            i++;
-        }
-*/
-
-
         // Invalid argument
         else {
             std::cout << "Unknown argument: " << arg << std::endl;
@@ -231,28 +175,6 @@ bool argumentParser(int argc, char* argv[], ArgumentConfigs& configuration) {
         }
     }
 
-    // Identifying specific invalid cases
-    // Can't have both map and generation mode off
-    if (configuration.map_mode_ == false && configuration.generation_mode_ == false) {
-        std::cout << "Must have --map or --generation (NOT BOTH)\n";
-        return false;
-    }
-
-    // If generation mode is on, all width/height/density values must be present/valid
-    if (configuration.generation_mode_ == true) {
-        if (configuration.width_ <= 0) {
-            std::cout << "Invalid width value (must be greater than 0)\n";
-            return false;
-        }
-        if (configuration.height_ <= 0) {
-            std::cout << "Invalid height value (must be greater than 0)\n";
-            return false;
-        }
-        if (configuration.density_ < 0 || configuration.density_ >= 1) {
-            std::cout << "Invalid density value (valid range: 0 < value <= 1)\n";
-            return false;
-        }
-    }
 
     // Everything went through, therefore the parsing has completed with no issues
     return true;
@@ -264,9 +186,6 @@ struct AlgorithmSearch {
     bool found = false;
     std::vector<bool> visited;
     std::vector<int> path; // Each int is an ID that a cell represents
-
-    // Step 7 is now optional
-    // int visited_amount_, path_len_, cost_, time;
 };
 
 
@@ -275,6 +194,7 @@ AlgorithmSearch BFS(Grid& grid) {
 
     int n = grid.width * grid.height; // represents the amount of cells in the grid
     result.visited.assign(n, false); // fill every cell with false, since at the start we haven't visited anything
+
     std::vector<int> parents(n, -1); // Each cell containing a parentID, -1 is a sentinel value
 
     int startId = grid.toID(grid.start_row, grid.start_col);
@@ -350,9 +270,6 @@ AlgorithmSearch Dijkstras(Grid& grid) {
         int curr = top.second;
         priorityQueue.pop();
 
-        if (result.visited[curr] == true)
-            continue;
-
         result.visited[curr] = true;
 
         if (curr == goalId) {
@@ -362,9 +279,6 @@ AlgorithmSearch Dijkstras(Grid& grid) {
 
 
         for (int neighbor : grid.getNeighbors(curr)) {
-            if (result.visited[neighbor] == true)
-                continue;
-
             int newCost = pairCost + 1;
 
             if (newCost < cost[neighbor]) {
@@ -424,9 +338,6 @@ AlgorithmSearch Astar(Grid& grid) {
 
         int curr = top.second;
 
-        if (result.visited[curr])
-            continue;
-
         result.visited[curr] = true;
 
         if (curr == goalId) {
@@ -436,9 +347,6 @@ AlgorithmSearch Astar(Grid& grid) {
 
 
         for (int neighbor : grid.getNeighbors(curr)) {
-            if (result.visited[neighbor] == true)
-                continue;
-
             int newG = cost[curr] + 1;
 
             if (newG < cost[neighbor]) {
@@ -549,6 +457,6 @@ int main(int argc, char* argv[]) {
         print(grid, result, "A*");
     }
 
-    
+
     return 0;
 }
